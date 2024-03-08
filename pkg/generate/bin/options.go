@@ -22,6 +22,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/CycloneDX/cyclonedx-gomod/pkg/licensedetect"
 )
 
@@ -89,6 +90,19 @@ func WithVersionOverride(version string) Option {
 func WithStdBuildInfo(buildInfo *debug.BuildInfo) Option {
 	return func(g *generator) error {
 		g.stdBuildInfo = buildInfo
+		return nil
+	}
+}
+
+// WithHashes sets the hashes for the Go binary. It is assumed these
+// have been precalculated, and no further checks are performed to validate
+// that the hashes correspond to the Go binary for which an SBOM is created.
+//
+// Note that this option will only be considered when `WithStdBuildInfo` is
+// also used.
+func WithHashes(hashes []cdx.Hash) Option {
+	return func(g *generator) error {
+		g.hashes = hashes
 		return nil
 	}
 }

@@ -135,14 +135,24 @@ func BuildToolMetadata(logger zerolog.Logger) (*cdx.Tool, error) {
 }
 
 func CalculateFileHashes(logger zerolog.Logger, filePath string, algos ...cdx.HashAlgorithm) ([]cdx.Hash, error) {
-	if len(algos) == 0 {
-		return make([]cdx.Hash, 0), nil
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
 	}
+	defer file.Close()
 
 	logger.Debug().
 		Str("file", filePath).
 		Interface("algos", algos).
 		Msg("calculating file hashes")
+
+	return CalculateFileHashesFromReader(logger, file, algos...)
+}
+
+func CalculateFileHashesFromReader(logger zerolog.Logger, r io.Reader, algos ...cdx.HashAlgorithm) ([]cdx.Hash, error) {
+	if len(algos) == 0 {
+		return make([]cdx.Hash, 0), nil
+	}
 
 	hashMap := make(map[cdx.HashAlgorithm]hash.Hash)
 	hashWriters := make([]io.Writer, 0)
@@ -173,17 +183,10 @@ func CalculateFileHashes(logger zerolog.Logger, filePath string, algos ...cdx.Ha
 		hashMap[algo] = hashWriter
 	}
 
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
 	multiWriter := io.MultiWriter(hashWriters...)
-	if _, err = io.Copy(multiWriter, file); err != nil {
+	if _, err := io.Copy(multiWriter, r); err != nil {
 		return nil, err
 	}
-	file.Close()
 
 	cdxHashes := make([]cdx.Hash, 0, len(hashMap))
 	for _, algo := range algos { // Don't iterate over hashMap, as it doesn't retain order

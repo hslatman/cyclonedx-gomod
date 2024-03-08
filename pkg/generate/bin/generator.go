@@ -42,6 +42,7 @@ type generator struct {
 
 	binaryPath      string
 	stdBuildInfo    *debug.BuildInfo
+	hashes          []cdx.Hash
 	includeStdlib   bool
 	licenseDetector licensedetect.Detector
 	versionOverride string
@@ -126,7 +127,7 @@ func (g generator) Generate() (*cdx.BOM, error) {
 	dependencies := sbom.BuildDependencyGraph(modules)
 	compositions := buildCompositions(main, components)
 
-	binaryProperties, err := g.buildBinaryProperties(g.binaryPath, bi)
+	binaryProperties, err := g.buildBinaryProperties(bi)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create binary properties")
 	}
@@ -171,11 +172,14 @@ func buildPseudoVersion(bi *gomod.BuildInfo) (string, error) {
 	return module.PseudoVersion("", "", vcsTime, vcsRev), nil
 }
 
-func (g generator) buildBinaryProperties(binaryPath string, bi *gomod.BuildInfo) ([]cdx.Property, error) {
-	properties := []cdx.Property{
-		sbom.NewProperty("binary:name", filepath.Base(binaryPath)),
-		sbom.NewProperty("build:env:GOVERSION", bi.GoVersion),
+func (g generator) buildBinaryProperties(bi *gomod.BuildInfo) ([]cdx.Property, error) {
+	properties := []cdx.Property{}
+	if g.stdBuildInfo != nil {
+		properties = append(properties, sbom.NewProperty("binary:name", filepath.Base(g.stdBuildInfo.Main.Path)))
+	} else {
+		properties = append(properties, sbom.NewProperty("binary:name", filepath.Base(g.binaryPath)))
 	}
+	properties = append(properties, sbom.NewProperty("build:env:GOVERSION", bi.GoVersion))
 
 	if len(bi.Settings) > 0 {
 		addProperty := func(settingKey, property string) {
@@ -200,8 +204,17 @@ func (g generator) buildBinaryProperties(binaryPath string, bi *gomod.BuildInfo)
 		}
 	}
 
-	binaryHashes, err := sbom.CalculateFileHashes(g.logger, binaryPath,
-		cdx.HashAlgoMD5, cdx.HashAlgoSHA1, cdx.HashAlgoSHA256, cdx.HashAlgoSHA384, cdx.HashAlgoSHA512)
+	var (
+		binaryHashes = []cdx.Hash{}
+		err          error
+	)
+	if g.stdBuildInfo != nil {
+		binaryHashes = g.hashes
+	} else {
+		binaryHashes, err = sbom.CalculateFileHashes(g.logger, g.binaryPath,
+			cdx.HashAlgoMD5, cdx.HashAlgoSHA1, cdx.HashAlgoSHA256, cdx.HashAlgoSHA384, cdx.HashAlgoSHA512,
+		)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate binary hashes: %w", err)
 	}
