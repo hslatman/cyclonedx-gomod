@@ -20,6 +20,7 @@ package gomod
 import (
 	"debug/buildinfo"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/CycloneDX/cyclonedx-gomod/internal/gocmd"
 )
@@ -34,12 +35,7 @@ type BuildInfo struct {
 	Settings  map[string]string // Other information about the build.
 }
 
-func LoadBuildInfo(binaryPath string) (*BuildInfo, error) {
-	stdBuildInfo, err := buildinfo.ReadFile(binaryPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read build info: %w", err)
-	}
-
+func LoadBuildInfo(stdBuildInfo *debug.BuildInfo) (*BuildInfo, error) {
 	buildInfo := BuildInfo{
 		Path: stdBuildInfo.Path,
 		Main: &Module{
@@ -50,6 +46,7 @@ func LoadBuildInfo(binaryPath string) (*BuildInfo, error) {
 		},
 	}
 
+	var err error
 	buildInfo.GoVersion, err = gocmd.ParseVersion(stdBuildInfo.GoVersion)
 	if err != nil {
 		return nil, err
@@ -91,4 +88,13 @@ func LoadBuildInfo(binaryPath string) (*BuildInfo, error) {
 	}
 
 	return &buildInfo, nil
+}
+
+func ReadBuildInfo(binaryPath string) (*BuildInfo, error) {
+	stdBuildInfo, err := buildinfo.ReadFile(binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read build info: %w", err)
+	}
+
+	return LoadBuildInfo(stdBuildInfo)
 }

@@ -18,6 +18,8 @@
 package bin
 
 import (
+	"runtime/debug"
+
 	"github.com/rs/zerolog"
 
 	"github.com/CycloneDX/cyclonedx-gomod/pkg/licensedetect"
@@ -73,6 +75,20 @@ func WithLogger(logger zerolog.Logger) Option {
 func WithVersionOverride(version string) Option {
 	return func(g *generator) error {
 		g.versionOverride = version
+		return nil
+	}
+}
+
+// WithStdBuildInfo sets the Go standard library [debug.BuildInfo] to
+// use for extracting module information.
+//
+// This is useful in cases where the [debug.BuildInfo] is already available.
+//
+// Note that the Go binary path is (currently) still required, as its file
+// hash(es) are included in the SBOM.
+func WithStdBuildInfo(buildInfo *debug.BuildInfo) Option {
+	return func(g *generator) error {
+		g.stdBuildInfo = buildInfo
 		return nil
 	}
 }

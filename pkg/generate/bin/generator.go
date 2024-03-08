@@ -18,8 +18,10 @@
 package bin
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -39,6 +41,7 @@ type generator struct {
 	logger zerolog.Logger
 
 	binaryPath      string
+	stdBuildInfo    *debug.BuildInfo
 	includeStdlib   bool
 	licenseDetector licensedetect.Detector
 	versionOverride string
@@ -63,11 +66,23 @@ func NewGenerator(binaryPath string, opts ...Option) (generate.Generator, error)
 
 // Generate implements the generate.Generator interface.
 func (g generator) Generate() (*cdx.BOM, error) {
-	bi, err := gomod.LoadBuildInfo(g.binaryPath)
+	var (
+		bi  *gomod.BuildInfo
+		err error
+	)
+
+	if g.stdBuildInfo != nil {
+		bi, err = gomod.LoadBuildInfo(g.stdBuildInfo)
+	} else {
+		bi, err = gomod.ReadBuildInfo(g.binaryPath)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to load build info: %w", err)
-	} else if bi.Main == nil {
+	} else if bi.Main == nil && g.stdBuildInfo == nil {
 		return nil, fmt.Errorf("failed to parse any modules from %s", g.binaryPath)
+	} else if bi.Main == nil {
+		return nil, errors.New("failed to parse any modules from Go debug.BuildInfo")
 	}
 
 	modules := append([]gomod.Module{*bi.Main}, bi.Deps...)
